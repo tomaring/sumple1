@@ -1,0 +1,168 @@
+# sumple1
+import streamlit as st
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from io import BytesIO
+
+def create_pdf(data):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    # 最初のページ
+    p.setFont("HeiseiKakuGo-W5", 16) # 日本語フォントを設定
+    p.drawString(50, height - 50, "事業報告書")
+    p.setFont("HeiseiKakuGo-W3", 12)
+    p.drawString(50, height - 100, f"年度: {data['year']}")
+    p.drawString(50, height - 120, f"開催会: {data['meeting']}")
+    p.drawString(50, height - 140, f"部門: {data['department']}")
+
+    # 次のページ
+    p.showPage()
+    p.setFont("HeiseiKakuGo-W5", 14)
+    p.drawString(50, height - 50, "事業報告をお願いします")
+    p.setFont("HeiseiKakuGo-W3", 10)
+    y_position = height - 80
+    for i, (date, content) in enumerate(data['activity_report']):
+        if date or content:
+            p.drawString(70, y_position, f"日付: {date if date else ''}")
+            p.drawString(150, y_position, f"内容: {content if content else ''}")
+            y_position -= 20
+            if y_position < 50 and i < len(data['activity_report']) -1:
+                p.showPage()
+                y_position = height - 50
+
+
+    p.setFont("HeiseiKakuGo-W5", 14)
+    p.drawString(50, y_position - 30, "活動の反省と課題を記入してください")
+    p.setFont("HeiseiKakuGo-W3", 10)
+    # 長文対応
+    y_position -= 60
+    lines = data['reflection'].split('\n')
+    for line in lines:
+        p.drawString(70, y_position, line)
+        y_position -= 15
+        if y_position < 50:
+            p.showPage()
+            y_position = height - 50
+
+    p.setFont("HeiseiKakuGo-W5", 14)
+    p.drawString(50, y_position - 30, "次回運営委員会までの活動予定を記入してください。")
+    p.setFont("HeiseiKakuGo-W3", 10)
+    y_position -= 60
+    for i, (date, content) in enumerate(data['future_plans']):
+        if date or content:
+            p.drawString(70, y_position, f"日付: {date if date else ''}")
+            p.drawString(150, y_position, f"内容: {content if content else ''}")
+            y_position -= 20
+            if y_position < 50 and i < len(data['future_plans']) -1:
+                p.showPage()
+                y_position = height - 50
+
+
+    p.save()
+    buffer.seek(0)
+    return buffer
+
+st.title("事業報告書作成ツール")
+
+# 最初のページ
+st.header("基本情報")
+with st.form("basic_info_form"):
+    year_options = ["2025", "2026", "2027"]
+    selected_year = st.selectbox("年度", year_options)
+
+    meeting_options = ["第１回運営委員会", "第２回運営委員会", "第３回運営委員会", "第４回運営委員会", "臨時総会", "PTA総会"]
+    selected_meeting = st.selectbox("開催会", meeting_options)
+
+    department_options = [
+        "学年委員１年", "学年委員２年", "学年委員３年", "学年委員４年", "学年委員５年", "学年委員６年",
+        "学年委員あゆみ", "広報部", "校外安全指導部", "教養部", "環境厚生部", "選考委員会", "育成回本部"
+    ]
+    selected_department = st.selectbox("部門", department_options)
+
+    submitted_basic_info = st.form_submit_button("次へ")
+
+if submitted_basic_info:
+    st.session_state['year'] = selected_year
+    st.session_state['meeting'] = selected_meeting
+    st.session_state['department'] = selected_department
+    st.session_state['page'] = 'details' # ページ遷移
+
+if 'page' in st.session_state and st.session_state['page'] == 'details':
+    st.header("詳細情報")
+    with st.form("detail_form"):
+        st.subheader("事業報告をお願いします")
+        activity_reports = []
+        for i in range(10):
+            col1, col2 = st.columns([0.3, 0.7])
+            with col1:
+                date = st.text_input(f"日付 {i+1}", key=f"activity_date_{i}")
+            with col2:
+                content = st.text_input(f"内容 {i+1}", key=f"activity_content_{i}")
+            activity_reports.append((date, content))
+
+        st.subheader("活動の反省と課題を記入してください")
+        reflection = st.text_area("反省と課題", height=150)
+
+        st.subheader("次回運営委員会までの活動予定を記入してください。")
+        future_plans = []
+        for i in range(10):
+            col1, col2 = st.columns([0.3, 0.7])
+            with col1:
+                date = st.text_input(f"予定日 {i+1}", key=f"plan_date_{i}")
+            with col2:
+                content = st.text_input(f"予定内容 {i+1}", key=f"plan_content_{i}")
+            future_plans.append((date, content))
+
+        submitted_details = st.form_submit_button("内容を確認")
+
+    if submitted_details:
+        st.session_state['activity_reports'] = activity_reports
+        st.session_state['reflection'] = reflection
+        st.session_state['future_plans'] = future_plans
+        st.session_state['page'] = 'review' # ページ遷移
+
+if 'page' in st.session_state and st.session_state['page'] == 'review':
+    st.header("完成品はこちらでよろしいですか？")
+
+    # 確認用の表を表示
+    st.subheader("基本情報")
+    st.write(f"**年度:** {st.session_state['year']}")
+    st.write(f"**開催会:** {st.session_state['meeting']}")
+    st.write(f"**部門:** {st.session_state['department']}")
+
+    st.subheader("事業報告")
+    for i, (date, content) in enumerate(st.session_state['activity_reports']):
+        if date or content:
+            st.write(f"**日付 {i+1}:** {date}, **内容 {i+1}:** {content}")
+
+    st.subheader("活動の反省と課題")
+    st.write(st.session_state['reflection'])
+
+    st.subheader("次回運営委員会までの活動予定")
+    for i, (date, content) in enumerate(st.session_state['future_plans']):
+        if date or content:
+            st.write(f"**予定日 {i+1}:** {date}, **予定内容 {i+1}:** {content}")
+
+    # PDF生成用のデータ
+    pdf_data = {
+        'year': st.session_state['year'],
+        'meeting': st.session_state['meeting'],
+        'department': st.session_state['department'],
+        'activity_report': st.session_state['activity_reports'],
+        'reflection': st.session_state['reflection'],
+        'future_plans': st.session_state['future_plans'],
+    }
+
+    # PDF生成
+    pdf_buffer = create_pdf(pdf_data)
+
+    st.download_button(
+        label="OK (PDFをダウンロード)",
+        data=pdf_buffer,
+        file_name="事業報告書.pdf",
+        mime="application/pdf"
+    )
+
+    st.info("PDFダウンロード後、Google Driveに手動でアップロードしてください。")
